@@ -1295,22 +1295,31 @@
         }
 
         // Reset Data Guru
-        function confirmResetAllData() {
-            if (confirm("⚠ APAKAH ANDA YAKIN INGIN MENGHAPUS SELURUH DATA TESTING KELOMPOK?\n\nData di LocalStorage & Firestore akan dibersihkan untuk memulai kelas baru.")) {
-                // Clear LocalStorage
-                for (let i = 1; i <= 9; i++) {
-                    localStorage.removeItem(`flowchart_doc_kelompok_${i}`);
-
-                    // Clear Firestore docs if available
-                    if (isFirebaseReady && db) {
-                        db.collection("flowchart_missions").doc(`kelompok_${i}`).delete();
-                    }
-                }
-                play8BitBeep(300, 'square', 0.3);
-                alert("✅ Seluruh data berhasil dibersihkan!");
-                location.reload();
+        async function confirmResetAllData() {
+        if (confirm("⚠ APAKAH ANDA YAKIN INGIN MENGHAPUS SELURUH DATA TESTING KELOMPOK?\n\nData di LocalStorage & Firestore akan dibersihkan untuk memulai kelas baru.")) {
+            // 1. Bersihkan LocalStorage lokal
+            for (let i = 1; i <= 9; i++) {
+                localStorage.removeItem(`flowchart_doc_kelompok_${i}`);
             }
+
+            // 2. Tunggu hingga proses hapus di Firestore selesai 100%
+            if (isFirebaseReady && db) {
+                const deletePromises = [];
+                for (let i = 1; i <= 9; i++) {
+                    deletePromises.push(db.collection("flowchart_missions").doc(`kelompok_${i}`).delete());
+                }
+                try {
+                    await Promise.all(deletePromises);
+                } catch (err) {
+                    console.error("Gagal menghapus Firestore:", err);
+                }
+            }
+
+            play8BitBeep(300, 'square', 0.3);
+            alert("✅ Seluruh data berhasil dibersihkan!");
+            location.reload();
         }
+    }
 
         // Victory Modal Helper
         function showVictoryModal(title, message, playSound = true, callback = null) {
