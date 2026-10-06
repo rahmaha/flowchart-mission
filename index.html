@@ -1,3 +1,4 @@
+<text name="index.html" lines="730">
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -294,12 +295,15 @@
                 </div>
 
                 <!-- Teacher Admin Controls -->
-                <div class="flex gap-2">
+                <div class="flex flex-wrap gap-2 justify-end">
+                    <button onclick="downloadCSV()" class="rpg-button bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 text-xs rounded font-bold flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-excel"></i> Download Rekap CSV / Excel 📊
+                    </button>
                     <button onclick="openTeacherGuideModal()" class="rpg-button bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 text-xs rounded font-bold">
                         <i class="fa-solid fa-key"></i> Setup Firebase
                     </button>
                     <button onclick="confirmResetAllData()" class="rpg-button bg-rose-600 hover:bg-rose-700 text-white px-3 py-2 text-xs rounded font-bold">
-                        <i class="fa-solid fa-trash"></i> Reset Data Guru
+                        <i class="fa-solid fa-trash"></i> Reset Data
                     </button>
                 </div>
             </div>
@@ -340,6 +344,13 @@
                         <!-- Loaded dynamically -->
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Prominent Download Button at bottom of table -->
+            <div class="mt-6 text-center border-t border-slate-800 pt-4">
+                <button onclick="downloadCSV()" class="rpg-button bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-6 rounded-lg text-sm md:text-base inline-flex items-center gap-2 shadow-lg">
+                    <i class="fa-solid fa-file-csv text-xl"></i> DOWNLOAD REKAP EXCEL / CSV KELAS 📊
+                </button>
             </div>
         </section>
 
@@ -399,10 +410,9 @@
 
     <script>
         // =========================================================================
-        // ⚙️ CONFIGURASI FIREBASE FIRESTORE (Tempel Config Anda Di Bawah Ini)
+        // ⚙️ CONFIGURASI FIREBASE FIRESTORE (Konfigurasi Anda)
         // =========================================================================
-         const firebaseConfig = {
-
+        const firebaseConfig = {
             apiKey: "AIzaSyD4X3wMuvWaokmqAEKV3MYz7Buwm7ERfQA",
             authDomain: "flowchart-mission.firebaseapp.com",
             projectId: "flowchart-mission",
@@ -412,10 +422,10 @@
             measurementId: "G-MP2MGX0WF8"
         };
 
-
         // Initialize Firebase / LocalStorage Fallback
         let db = null;
         let isFirebaseReady = false;
+        let latestCloudMap = {};
 
         try {
             if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOUR_API_KEY_HERE") {
@@ -1098,18 +1108,17 @@
         function initRealtimeLeaderboard() {
             if (isFirebaseReady && db) {
                 db.collection("flowchart_missions").onSnapshot(snapshot => {
-                    const allData = {};
+                    latestCloudMap = {};
                     snapshot.forEach(doc => {
-                        allData[doc.id] = doc.data();
+                        latestCloudMap[doc.id] = doc.data();
                     });
-                    renderLeaderboardTable(allData);
+                    renderLeaderboardTable(latestCloudMap);
                 }, err => {
                     console.warn("Firestore error, fallback local leaderboard:", err);
                     renderLocalLeaderboard();
                 });
             } else {
                 renderLocalLeaderboard();
-                // Poll local store every 3 seconds
                 setInterval(renderLocalLeaderboard, 3000);
             }
         }
@@ -1120,6 +1129,7 @@
                 const data = getGroupLocalData(i);
                 if (data) allData[`kelompok_${i}`] = data;
             }
+            latestCloudMap = allData;
             renderLeaderboardTable(allData);
         }
 
@@ -1167,6 +1177,47 @@
         }
 
         // =========================================================================
+        // 📊 FEATURE EXPORT REKAP DATA (CSV / EXCEL)
+        // =========================================================================
+        function downloadCSV() {
+            let csvContent = "\uFEFF"; // UTF-8 BOM untuk kompatibilitas Microsoft Excel
+            csvContent += "Kelompok;Studi Kasus;Anggota Tim;Status Misi;Skor Stage 2 (Analisis);Foto Karton;Waktu Selesai\n";
+
+            for (let g = 1; g <= 9; g++) {
+                const docKey = `kelompok_${g}`;
+                const localData = getGroupLocalData(g);
+                const gData = (latestCloudMap && latestCloudMap[docKey]) ? latestCloudMap[docKey] : localData;
+
+                const caseTitle = CASE_DATA[g] ? `"${CASE_DATA[g].title}"` : `Case ${g}`;
+
+                if (gData) {
+                    const kelompok = `Kelompok ${g}`;
+                    const anggota = gData.members && gData.members.length > 0 ? `"${gData.members.join(', ')}"` : "-";
+                    const status = gData.completed ? "Selesai (Completed)" : (gData.stage ? `Proses (Stage ${gData.stage})` : "Belum Mulai");
+                    const skor = gData.stage2Score !== undefined ? `${gData.stage2Score}` : "0";
+                    const foto = gData.stage3Photo ? "Sudah Upload" : "Belum Upload";
+                    const waktu = gData.completedAt || gData.lastUpdated || "-";
+
+                    csvContent += `${kelompok};${caseTitle};${anggota};${status};${skor};${foto};${waktu}\n`;
+                } else {
+                    csvContent += `Kelompok ${g};${caseTitle};-;Belum Mulai;0;Belum Upload;-\n`;
+                }
+            }
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            const dateStr = new Date().toISOString().slice(0,10);
+            link.setAttribute("download", `Rekap_Nilai_Flowchart_Kelas_${dateStr}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            play8BitBeep(650, 'square', 0.2);
+        }
+
+        // =========================================================================
         // ⏱️ TIMER PRESENTASI 3 MENIT & GURU INSPECT
         // =========================================================================
         function startTimer() {
@@ -1203,14 +1254,14 @@
 
         // Inspect Modal Detail
         function inspectGroupDetail(docKey) {
-            const rawData = localStorage.getItem(`flowchart_doc_${docKey}`);
-            const data = rawData ? JSON.parse(rawData) : null;
+            const gId = docKey.replace('kelompok_', '');
+            const localData = getGroupLocalData(gId);
+            const data = (latestCloudMap && latestCloudMap[docKey]) ? latestCloudMap[docKey] : localData;
 
             const modal = document.getElementById('inspect-modal');
             const title = document.getElementById('inspect-group-title');
             const content = document.getElementById('inspect-content');
 
-            const gId = docKey.replace('kelompok_', '');
             title.innerText = `Inspeksi Detail: Kelompok ${gId}`;
 
             if (!data) {
@@ -1245,7 +1296,7 @@
 
         // Reset Data Guru
         function confirmResetAllData() {
-            if (confirm("⚠️️ APAKAH ANDA YAKIN INGIN MENGHAPUS SELURUH DATA TESTING KELOMPOK?\n\nData di LocalStorage & Firestore akan dibersihkan untuk memulai kelas baru.")) {
+            if (confirm("⚠ APAKAH ANDA YAKIN INGIN MENGHAPUS SELURUH DATA TESTING KELOMPOK?\n\nData di LocalStorage & Firestore akan dibersihkan untuk memulai kelas baru.")) {
                 // Clear LocalStorage
                 for (let i = 1; i <= 9; i++) {
                     localStorage.removeItem(`flowchart_doc_kelompok_${i}`);
@@ -1290,3 +1341,4 @@
     </script>
 </body>
 </html>
+</text>
